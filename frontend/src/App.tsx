@@ -158,6 +158,20 @@ function App() {
     fetchScanList(fullPath);
   };
 
+  const loadDemoData = async () => {
+    setLoading(true); setError(null);
+    try {
+        const response = await fetch(`${BACKEND_URL}/get-demo-path`);
+        if (!response.ok) throw new Error('Demo file not available.');
+        const data = await response.json();
+        setSelectedFile(data.path);
+        setChromData(null); setSpectrumData(null);
+        setScanList([]); setCurrentScanIdx(-1);
+        fetchTic(data.path);
+        fetchScanList(data.path);
+    } catch (err: any) { setError(err.message); } finally { setLoading(false); }
+  };
+
   const fetchScanList = async (filepath: string) => {
     try {
         const response = await fetch(`${BACKEND_URL}/get-scan-list`, {
@@ -453,6 +467,9 @@ function App() {
                         Back to TIC
                     </button>
                 )}
+                <button className="action-btn" onClick={loadDemoData} style={{ backgroundColor: '#28a745' }}>
+                    Load Demo Data
+                </button>
                 <button className="action-btn" onClick={fetchChromatogram} disabled={!selectedFile}>
                     Extract XIC
                 </button>

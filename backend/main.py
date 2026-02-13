@@ -244,6 +244,13 @@ def get_spectrum(
     
     raise HTTPException(status_code=404, detail="Spectrum not found")
 
+@app.get("/get-demo-path")
+def get_demo_path():
+    demo_path = os.path.join(os.path.dirname(__file__), "dummy.mzML")
+    if os.path.exists(demo_path):
+        return {"path": demo_path}
+    raise HTTPException(status_code=404, detail="Demo file not found")
+
 @app.post("/get-ms2-spectrum")
 def get_ms2_spectrum(
     filepath: str = Body(...),
