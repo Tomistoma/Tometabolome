@@ -1,0 +1,209 @@
+/* Split Gutter Styling */
+.gutter {
+    background-color: #333;
+    background-repeat: no-repeat;
+    background-position: 50%;
+}
+
+.gutter.gutter-horizontal {
+    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAeCAYAAADkftS9AAAAIklEQVQoU2M4c+bMfxAGAgYYmwGrIIiDjrELjpo5aiZeMwF+yNnOs5KSvgAAAABJRU5ErkJggg==');
+    cursor: col-resize;
+}
+
+.gutter.gutter-vertical {
+    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAFAQMAAABoV83XAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgTMt2l2d/8AAAAJcEhZcwAALiMAAC4jAXilP3YAAAApSURBVAjXY2AgDxo1gJNKg0tQmncZMKG133e0Dofbbbc5c8855Tzjj00Ak5xrkL702Z0AAAAASUVORK5CYII=');
+    cursor: row-resize;
+}
+
+/* Ensure containers fill space */
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  padding: 0;
+  background-color: rgb(22, 22, 22);
+  color: #eee;
+  overflow: hidden;
+}
+
+header {
+  border-bottom: 1px solid #333;
+  padding: 8px 20px;
+  background-color: #1a1a1a;
+  flex-shrink: 0;
+}
+
+.main-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 40px); /* Subtract header height roughly */
+}
+
+/* Sidebar */
+.sidebar {
+  /* No fixed width here, managed by Split */
+  background-color: #1e1e1e;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  min-width: 200px;
+  overflow: hidden;
+}
+
+.file-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-item {
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-item:hover { background-color: #333; }
+.file-item.folder { color: #ffd700; }
+.file-item.file { color: #ddd; }
+.file-item.active { background-color: #004085; color: white; }
+
+/* Content Area */
+.content {
+  flex: 1; /* Within the split logic if this is a container, but split usually wraps children */
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  overflow: hidden;
+  height: 100%;
+}
+
+.controls {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  background-color: #2a2a2a;
+  padding: 10px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+/* ... keep input styling ... */
+.input-group { display: flex; flex-direction: column; gap: 5px; }
+label { font-size: 0.75rem; color: #aaa; }
+input, select, button { padding: 6px; border-radius: 4px; border: 1px solid #444; background-color: #333; color: white; font-size: 0.9rem; }
+.range-display { display: flex; flex-direction: column; justify-content: center; color: #aaa; font-size: 0.8rem; padding: 0 10px; border-left: 1px solid #444; }
+button { background-color: #007bff; border: none; cursor: pointer; font-weight: bold; }
+button:hover { background-color: #0056b3; }
+button:disabled { background-color: #555; cursor: not-allowed; }
+.action-btn { background-color: #28a745; align-self: flex-end; }
+.action-btn:hover { background-color: #218838; }
+
+.loading, .error, .selected-info { margin: 5px 0; font-size: 0.9rem; font-weight: bold; }
+.loading { color: #ffd700; }
+.error { color: #ff4444; }
+.selected-info { color: #88cfff; font-family: monospace; }
+.hint { font-size: 0.75rem; color: #888; font-style: italic; text-align: center; }
+
+/* Plots Section */
+.plots-split {
+    display: flex;
+    flex: 1;
+    overflow: hidden; 
+    /* The Split component will replace .plots div logic */
+}
+
+.plot-pane {
+  display: flex;
+  flex-direction: column;
+  background-color: #2a2a2a;
+  border-radius: 8px;
+  overflow: hidden; /* Ensure plot stays inside */
+  padding: 5px;
+  position: relative;
+}
+
+.plot-pane h3 {
+    margin: 5px 0;
+    font-size: 0.9rem;
+    color: #ddd;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.js-plotly-plot {
+    flex: 1; /* Takes remaining height */
+}
+
+/* Scan Table Styles */
+.scan-table-container {
+    height: 300px;
+    overflow-y: auto;
+    background-color: #1a1a1a;
+    border-top: 1px solid #333;
+    margin-top: 10px;
+}
+
+.scan-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.scan-table th {
+    position: sticky;
+    top: 0;
+    background-color: #2a2a2a;
+    padding: 8px;
+    text-align: left;
+    border-bottom: 2px solid #444;
+}
+
+.scan-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #333;
+}
+
+.scan-table tr:hover {
+    background-color: #333;
+    cursor: pointer;
+}
+
+.scan-table tr.active {
+    background-color: #004085;
+    color: white;
+}
+
+.placeholder-msg {
+    display: flex;
+    height: 100%;
+    flex: 1;
+    justify-content: center;
+    align-items: center;
+    color: #666;
+    font-size: 0.9rem;
+    font-style: italic;
+    background-color: #1a1a1a;
+    border-radius: 4px;
+}
+
+.js-plotly-plot {
+    cursor: default;
+}
+.js-plotly-plot .bg {
+    cursor: crosshair;
+}
+.loading-overlay {
+    backdrop-filter: blur(2px);
+    transition: opacity 0.3s ease;
+    font-size: 1.2rem;
+    letter-spacing: 1px;
+}
