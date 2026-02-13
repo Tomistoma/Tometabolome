@@ -346,12 +346,20 @@ async def serve_react_app(full_path: str):
     if os.path.exists(index_path):
         return FileResponse(index_path)
     
+    frontend_exists = os.path.exists(frontend_path)
+    dist_contents = os.listdir(frontend_path) if frontend_exists else []
+    
+    frontend_node_modules = os.path.join(root_dir, "frontend", "node_modules")
+    
     return {
         "error": "Frontend not found",
         "debug_info": {
             "requested_path": full_path,
             "looked_at": file_path,
-            "frontend_path_exists": os.path.exists(frontend_path),
+            "frontend_dist_exists": frontend_exists,
+            "dist_contents": dist_contents,
+            "frontend_folder_exists": os.path.exists(os.path.join(root_dir, "frontend")),
+            "frontend_node_modules_exists": os.path.exists(frontend_node_modules),
             "root_contents": os.listdir(root_dir) if os.path.exists(root_dir) else "N/A"
         }
     }
