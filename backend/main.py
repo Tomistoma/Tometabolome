@@ -1,10 +1,12 @@
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from typing import List, Optional
 import os
 import glob
+import shutil
+import uuid
 import pyopenms as oms
 import numpy as np
 
@@ -13,11 +15,16 @@ app = FastAPI()
 # Allow CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"], # Vite default port
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Temp storage for uploads
+UPLOAD_DIR = "temp_uploads"
+if not os.path.exists(UPLOAD_DIR):
+    os.makedirs(UPLOAD_DIR)
 
 
 # Global cache
@@ -250,6 +257,23 @@ def get_demo_path():
     if os.path.exists(demo_path):
         return {"path": demo_path}
     raise HTTPException(status_code=404, detail="Demo file not found")
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(('.mzml', '.xml')):
+        raise HTTPException(status_code=400, detail="Only .mzML and .xml files are supported")
+    
+    file_id = str(uuid.uuid4())
+    filename = f"{file_id}_{file.filename}"
+    filepath = os.path.join(UPLOAD_DIR, filename)
+    
+    try:
+        with open(filepath, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        
+    return {"filepath": os.path.abspath(filepath), "filename": file.filename}
 
 @app.post("/get-ms2-spectrum")
 def get_ms2_spectrum(

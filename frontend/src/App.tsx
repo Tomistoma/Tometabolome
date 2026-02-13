@@ -29,6 +29,7 @@ function App() {
   const [currentPath, setCurrentPath] = useState<string>('');
   const [folders, setFolders] = useState<string[]>([]);
   const [files, setFiles] = useState<string[]>([]);
+  const [manualPath, setManualPath] = useState<string>('');
   
   // Selection & Input
   const [selectedFile, setSelectedFile] = useState<string>(''); 
@@ -170,6 +171,36 @@ function App() {
         fetchTic(data.path);
         fetchScanList(data.path);
     } catch (err: any) { setError(err.message); } finally { setLoading(false); }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    setLoading(true); setError(null);
+    try {
+        const response = await fetch(`${BACKEND_URL}/upload`, {
+            method: 'POST',
+            body: formData
+        });
+        if (!response.ok) throw new Error('Upload failed. The file might be too large for the server.');
+        const data = await response.json();
+        
+        setSelectedFile(data.filepath);
+        setTicData(null); setChromData(null); setSpectrumData(null);
+        setScanList([]); setCurrentScanIdx(-1);
+        fetchTic(data.filepath);
+        fetchScanList(data.filepath);
+    } catch (err: any) { setError(err.message); } 
+    finally { setLoading(false); }
+  };
+
+  const handleManualPathSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (manualPath) fetchDirectory(manualPath);
   };
 
   const fetchScanList = async (filepath: string) => {
@@ -398,11 +429,29 @@ function App() {
       <div className="main-layout" style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden' }}>
         {sidebarVisible && (
             <div className="sidebar" style={{ width: '250px', flexShrink: 0 }}>
-                <h3>File Browser</h3>
-                <div className="current-path" title={currentPath}>
-                    {currentPath || "Loading..."}
+                <div className="browser-header" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <h3 style={{ margin: 0 }}>File Browser</h3>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                            <label className="action-btn" style={{ backgroundColor: '#007bff', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
+                                📤 Upload 
+                                <input type="file" accept=".mzML,.xml" style={{ display: 'none' }} onChange={handleFileUpload} />
+                            </label>
+                            <button onClick={traverseUp} disabled={!currentPath || currentPath === '/'} style={{ padding: '2px 8px' }}>⬆️ Up</button>
+                        </div>
+                    </div>
+                    <form onSubmit={handleManualPathSubmit} style={{ display: 'flex', gap: '5px' }}>
+                        <input 
+                            type="text" 
+                            placeholder="Enter path (e.g. /Users/name/Desktop)" 
+                            value={manualPath}
+                            onChange={(e) => setManualPath(e.target.value)}
+                            style={{ flex: 1, fontSize: '0.75rem', padding: '4px' }}
+                        />
+                        <button type="submit" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>Go</button>
+                    </form>
                 </div>
-                <button onClick={traverseUp} disabled={!currentPath || currentPath === '/'}>⬆️ Up</button>
+                <div style={{ fontSize: '0.7rem', color: '#888', marginBottom: '10px', wordBreak: 'break-all' }}>Current: {currentPath}</div>
                 <div className="file-list">
                     {folders.map(f => (
                         <div key={f} className="file-item folder" onClick={() => handleFolderClick(f)}>
