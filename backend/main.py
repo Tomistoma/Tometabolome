@@ -57,20 +57,19 @@ def load_ms_data(filepath):
             ms1_rts.append(rt)
             ms1_indices.append(i)
             
-            tic = float(spec.getTIC())
-            if tic == 0:
-                _, intensities = spec.get_peaks()
-                tic = float(np.sum(intensities))
+            mzs, intensities = spec.get_peaks()
+            tic = float(np.sum(intensities))
             tic_rts.append(rt)
             tic_ints.append(tic)
             
-            # Optimization: Use OpenMS pre-calculated metadata if available
+            # Base peak from peak data
+            base_peak_idx = np.argmax(intensities) if len(intensities) > 0 else -1
             scan_list.append({
                 "id": i,
                 "rt": rt,
                 "tic": tic,
-                "base_peak_mz": float(spec.getMetaValue("base peak m/z")) if spec.metaValueExists("base peak m/z") else 0.0,
-                "base_peak_int": float(spec.getMetaValue("base peak intensity")) if spec.metaValueExists("base peak intensity") else 0.0
+                "base_peak_mz": float(mzs[base_peak_idx]) if base_peak_idx != -1 else 0.0,
+                "base_peak_int": float(intensities[base_peak_idx]) if base_peak_idx != -1 else 0.0
             })
         elif level == 2:
             precursors = spec.getPrecursors()
