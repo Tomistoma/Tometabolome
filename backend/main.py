@@ -58,6 +58,9 @@ def load_ms_data(filepath):
             ms1_indices.append(i)
             
             tic = float(spec.getTIC())
+            if tic == 0:
+                _, intensities = spec.get_peaks()
+                tic = float(np.sum(intensities))
             tic_rts.append(rt)
             tic_ints.append(tic)
             
@@ -94,15 +97,18 @@ def get_tic(filepath: str = Body(..., embed=True)):
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
 
-    indices = file_indices.get(filepath)
-    if not indices:
-        load_ms_data(filepath)
+    try:
         indices = file_indices.get(filepath)
-    
-    return {
-        "rts": indices["tic_rts"].tolist(),
-        "ints": indices["tic_ints"].tolist()
-    }
+        if not indices:
+            load_ms_data(filepath)
+            indices = file_indices.get(filepath)
+        
+        return {
+            "rts": indices["tic_rts"].tolist(),
+            "ints": indices["tic_ints"].tolist()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to compute TIC: {str(e)}")
 
 @app.post("/extract-chromatogram")
 def extract_chromatogram(

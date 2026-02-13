@@ -198,7 +198,10 @@ function App() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filepath })
         });
-        if (!response.ok) throw new Error('Failed to get TIC');
+        if (!response.ok) {
+            const errData = await response.json().catch(() => null);
+            throw new Error(errData?.detail || 'Failed to get TIC');
+        }
         const data: ChromatogramResponse = await response.json();
         setTicData({ x: data.rts, y: data.ints });
         setPlotRevision(prev => prev + 1); 
