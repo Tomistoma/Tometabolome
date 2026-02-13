@@ -313,10 +313,17 @@ def get_scan_list(filepath: str = Body(..., embed=True)):
     return indices["scan_list"] if indices else []
 
 # Serve static files from React build
-# Use absolute path relative to this file
 backend_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(backend_dir)
 frontend_path = os.path.join(root_dir, "frontend", "dist")
+
+print(f"DEBUG: Backend Dir: {backend_dir}")
+print(f"DEBUG: Root Dir: {root_dir}")
+print(f"DEBUG: Looking for frontend at: {frontend_path}")
+if os.path.exists(frontend_path):
+    print(f"DEBUG: Frontend path found. Contents: {os.listdir(frontend_path)}")
+else:
+    print("DEBUG: Frontend path NOT found.")
 
 # We mount static files at a specific subpath if we want to avoid shadowing, 
 # but for a SPA we usually want "/" to serve the index.
@@ -324,14 +331,27 @@ frontend_path = os.path.join(root_dir, "frontend", "dist")
 
 @app.get("/{full_path:path}")
 async def serve_react_app(full_path: str):
-    # If the path looks like a file (has an extension), try to serve it from dist
+    # Handle root
+    if full_path == "":
+        full_path = "index.html"
+        
     file_path = os.path.join(frontend_path, full_path)
+    
+    # If the file exists, serve it
     if os.path.isfile(file_path):
         return FileResponse(file_path)
     
-    # Fallback to index.html for SPA routing
+    # Fallback to index.html for SPA routing (only if it's not already a request for a missing asset)
     index_path = os.path.join(frontend_path, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
     
-    return {"message": "Frontend not built yet. Ensure 'npm run build' was successful in the frontend folder."}
+    return {
+        "error": "Frontend not found",
+        "debug_info": {
+            "requested_path": full_path,
+            "looked_at": file_path,
+            "frontend_path_exists": os.path.exists(frontend_path),
+            "root_contents": os.listdir(root_dir) if os.path.exists(root_dir) else "N/A"
+        }
+    }
