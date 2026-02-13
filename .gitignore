@@ -7,8 +7,9 @@
 /coverage
 
 # production
-/dist
-/build
+# (Uncommented to allow manual push of builds)
+# /dist
+# /build
 
 # misc
 .DS_Store
