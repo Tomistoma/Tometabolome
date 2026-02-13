@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from typing import List, Optional
 import os
 import glob
@@ -302,3 +304,16 @@ def get_scan_list(filepath: str = Body(..., embed=True)):
         indices = file_indices.get(filepath)
         
     return indices["scan_list"] if indices else []
+
+# Serve static files from React build
+frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="static")
+
+@app.get("/{full_path:path}")
+async def serve_react_app(full_path: str):
+    index_path = os.path.join(frontend_path, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "Frontend not built yet. Run 'npm run build' in frontend folder."}

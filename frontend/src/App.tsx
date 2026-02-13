@@ -21,7 +21,7 @@ interface Scan {
   base_peak_int: number;
 }
 
-const BACKEND_URL = 'http://localhost:8000';
+const BACKEND_URL = import.meta.env.MODE === 'production' ? '' : 'http://localhost:8000';
 
 function App() {
   // --- STATE ---
