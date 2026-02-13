@@ -6,14 +6,10 @@
     "node": "20.x"
   },
   "dependencies": {
-    "concurrently": "^8.2.2"
+    "vite": "^7.3.1"
   },
   "scripts": {
-    "start": "concurrently \"npm run start-backend\" \"npm run start-frontend\"",
-    "start-backend": "cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port $PORT",
-    "start-frontend": "cd frontend && npm run dev",
     "build": "cd frontend && npm install && npm run build",
-    "heroku-postbuild": "cd frontend && npm install && npm run build",
-    "postinstall": "cd frontend && npm install && npm run build"
+    "heroku-postbuild": "cd frontend && npm install && npm run build"
   }
 }
