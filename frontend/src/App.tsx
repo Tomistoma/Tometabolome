@@ -122,7 +122,7 @@ function App() {
   const getChromYAtRT = (rt: number) => {
     const activeData = chromData || ticData;
     if (!activeData) return 0;
-    const idx = activeData.x.findIndex(t => Math.abs(t - rt) < 0.2);
+    const idx = activeData.x.findIndex(t => Math.abs(t - rt) < 2.0);
     return idx !== -1 ? activeData.y[idx] : 0;
   };
 
@@ -165,7 +165,7 @@ function App() {
         if (!response.ok) throw new Error('Demo file not available.');
         const data = await response.json();
         setSelectedFile(data.path);
-        setChromData(null); setSpectrumData(null);
+        setTicData(null); setChromData(null); setSpectrumData(null);
         setScanList([]); setCurrentScanIdx(-1);
         fetchTic(data.path);
         fetchScanList(data.path);
@@ -173,6 +173,7 @@ function App() {
   };
 
   const fetchScanList = async (filepath: string) => {
+    setLoading(true);
     try {
         const response = await fetch(`${BACKEND_URL}/get-scan-list`, {
             method: 'POST',
@@ -183,6 +184,7 @@ function App() {
         const data: Scan[] = await response.json();
         setScanList(data);
     } catch (err: any) { console.error(err.message); }
+    finally { setLoading(false); }
   };
 
   const fetchTic = async (filepath: string) => {
@@ -305,21 +307,33 @@ function App() {
   };
 
   const handlePlotClick = async (event: any) => {
-    if (!selectedFile || !event.points) return;
+    if (!selectedFile) return;
     
-    // Default to the first point's X if available (snapped to data)
-    let rt_min = 0;
-    if (event.points.length > 0) {
-      rt_min = event.points[0].x;
-    } else {
-      // If clicking outside data points, grab the coordinate from the axis
-      // Plotly click events usually provide 'x' and 'y' for the pixel location on the layout
-      if (event.event && event.event.layerX !== undefined) {
-          // Fallback if snapping failed
-          return; 
-      }
-      return;
+    let rt_min: number | null = null;
+    
+    // 1. Try to find a point with x coordinate
+    if (event.points && event.points.length > 0) {
+        for (const p of event.points) {
+            if (p.x !== undefined && p.x !== null) {
+                rt_min = p.x;
+                break;
+            }
+        }
     }
+    
+    // 2. Fallback: try to calculate X from mouse position relative to the graph
+    if (rt_min === null && event.event && event.event.target) {
+        const gd = event.event.target.closest('.js-plotly-plot');
+        if (gd && gd._fullLayout && gd._fullLayout.xaxis) {
+            const xaxis = gd._fullLayout.xaxis;
+            // Get position within the plot area
+            const bbox = gd.getBoundingClientRect();
+            const xPixel = event.event.clientX - bbox.left - gd._fullLayout.margin.l;
+            rt_min = xaxis.p2c(xPixel);
+        }
+    }
+    
+    if (rt_min === null || rt_min < 0) return;
     
     const rt_sec = rt_min * 60.0;
     fetchSpectrum(rt_sec);
@@ -506,12 +520,15 @@ function App() {
                                                 marker: { size: 15, color: 'red', symbol: 'circle-open', line: { width: 3 } },
                                                 name: 'Current Scan', hoverinfo: 'skip'
                                             },
-                                            {
-                                                x: activeChromData.x.map(t => t / 60.0), 
-                                                y: activeChromData.x.map(() => Math.max(...activeChromData.y)),
-                                                type: 'scatter', mode: 'lines', fill: 'tozeroy', fillcolor: 'rgba(0,0,0,0)',
-                                                line: { color: 'transparent' }, hoverinfo: 'x', showlegend: false
-                                            }
+                                            (() => {
+                                                const maxY = Math.max(...activeChromData.y);
+                                                return {
+                                                    x: activeChromData.x.map(t => t / 60.0), 
+                                                    y: activeChromData.x.map(() => maxY),
+                                                    type: 'scatter', mode: 'lines', fill: 'tozeroy', fillcolor: 'rgba(0,0,0,0)',
+                                                    line: { color: 'transparent' }, hoverinfo: 'x', showlegend: false
+                                                };
+                                            })()
                                         ].filter(Boolean) as any}
                                         layout={{ 
                                             autosize: true, margin: { l: 70, r: 20, t: 30, b: 40 }, uirevision: plotRevision, showlegend: false,
