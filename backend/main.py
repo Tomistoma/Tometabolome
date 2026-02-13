@@ -313,14 +313,25 @@ def get_scan_list(filepath: str = Body(..., embed=True)):
     return indices["scan_list"] if indices else []
 
 # Serve static files from React build
-frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+# Use absolute path relative to this file
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(backend_dir)
+frontend_path = os.path.join(root_dir, "frontend", "dist")
 
-if os.path.exists(frontend_path):
-    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="static")
+# We mount static files at a specific subpath if we want to avoid shadowing, 
+# but for a SPA we usually want "/" to serve the index.
+# To avoid shadowing @app.get routes, we mount it AFTER all other routes are defined.
 
 @app.get("/{full_path:path}")
 async def serve_react_app(full_path: str):
+    # If the path looks like a file (has an extension), try to serve it from dist
+    file_path = os.path.join(frontend_path, full_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    # Fallback to index.html for SPA routing
     index_path = os.path.join(frontend_path, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return {"message": "Frontend not built yet. Run 'npm run build' in frontend folder."}
+    
+    return {"message": "Frontend not built yet. Ensure 'npm run build' was successful in the frontend folder."}
