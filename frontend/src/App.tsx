@@ -120,13 +120,6 @@ function App() {
     return (max > 0) ? max : 1;
   };
 
-  const getChromYAtRT = (rt: number) => {
-    const activeData = chromData || ticData;
-    if (!activeData) return 0;
-    const idx = activeData.x.findIndex(t => Math.abs(t - rt) < 2.0);
-    return idx !== -1 ? activeData.y[idx] : 0;
-  };
-
   // --- ACTIONS ---
   const fetchDirectory = async (path: string) => {
     setLoading(true); setError(null);
@@ -562,13 +555,17 @@ function App() {
                                                 fill: 'tozeroy', fillcolor: 'rgba(255, 193, 7, 0.4)', line: { color: '#ffc107', width: 2 },
                                                 name: 'Integrated Peak', hoverinfo: 'skip'
                                             },
-                                            spectrumData && {
-                                                x: [spectrumData.rt / 60.0],
-                                                y: [getChromYAtRT(spectrumData.rt)],
-                                                type: 'scatter', mode: 'markers',
-                                                marker: { size: 15, color: 'red', symbol: 'circle-open', line: { width: 3 } },
-                                                name: 'Current Scan', hoverinfo: 'skip'
-                                            },
+                                            (() => {
+                                                if (!spectrumData) return null;
+                                                const maxY = Math.max(...activeChromData.y);
+                                                return {
+                                                    x: [spectrumData.rt / 60.0, spectrumData.rt / 60.0],
+                                                    y: [0, maxY],
+                                                    type: 'scatter', mode: 'lines',
+                                                    line: { color: 'red', width: 2, dash: 'dash' },
+                                                    name: 'Current Scan', hoverinfo: 'skip'
+                                                };
+                                            })(),
                                             (() => {
                                                 const maxY = Math.max(...activeChromData.y);
                                                 return {
