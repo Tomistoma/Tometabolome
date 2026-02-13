@@ -35,5 +35,6 @@ venv.bak/
 
 # Project specifics
 *.mzML
+!backend/dummy.mzML
 *.xml
 backend/data/
