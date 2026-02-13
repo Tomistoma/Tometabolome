@@ -44,14 +44,11 @@ def load_ms_data(filepath):
     loaded_files[filepath] = exp
     
     # Pre-build indices and scan list
-    ms1_rts = []
-    ms1_indices = []
-    ms2_mzs = []
-    ms2_rts = []
-    ms2_indices = []
+    ms1_rts, ms1_indices = [], []
+    ms2_mzs, ms2_rts, ms2_indices = [], [], []
     scan_list = []
+    tic_rts, tic_ints = [], []
     
-    ms1_count = 0
     for i, spec in enumerate(exp.getSpectra()):
         rt = float(spec.getRT())
         level = spec.getMSLevel()
@@ -60,16 +57,18 @@ def load_ms_data(filepath):
             ms1_rts.append(rt)
             ms1_indices.append(i)
             
-            mzs, intensities = spec.get_peaks()
-            base_peak_idx = np.argmax(intensities) if len(intensities) > 0 else -1
+            tic = float(spec.getTIC())
+            tic_rts.append(rt)
+            tic_ints.append(tic)
+            
+            # Optimization: Use OpenMS pre-calculated metadata if available
             scan_list.append({
-                "id": ms1_count,
+                "id": i,
                 "rt": rt,
-                "tic": float(np.sum(intensities)),
-                "base_peak_mz": float(mzs[base_peak_idx]) if base_peak_idx != -1 else 0.0,
-                "base_peak_int": float(intensities[base_peak_idx]) if base_peak_idx != -1 else 0.0
+                "tic": tic,
+                "base_peak_mz": float(spec.getMetaValue("base peak m/z")) if spec.metaValueExists("base peak m/z") else 0.0,
+                "base_peak_int": float(spec.getMetaValue("base peak intensity")) if spec.metaValueExists("base peak intensity") else 0.0
             })
-            ms1_count += 1
         elif level == 2:
             precursors = spec.getPrecursors()
             if precursors:
@@ -83,71 +82,27 @@ def load_ms_data(filepath):
         "ms2_mzs": np.array(ms2_mzs),
         "ms2_rts": np.array(ms2_rts),
         "ms2_indices": ms2_indices,
-        "scan_list": scan_list
+        "scan_list": scan_list,
+        "tic_rts": np.array(tic_rts),
+        "tic_ints": np.array(tic_ints)
     }
     
     return exp
-
-@app.get("/browse-files")
-def browse_files(path: Optional[str] = None):
-    # Default to home directory if no path provided
-    if path is None or path == "":
-        path = os.path.expanduser("~")
-    
-    if not os.path.exists(path) or not os.path.isdir(path):
-         raise HTTPException(status_code=404, detail="Path not found or is not a directory")
-    
-    try:
-        items = os.listdir(path)
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Permission denied")
-
-    folders = []
-    files = []
-    
-    for item in sorted(items):
-        if item.startswith('.'): continue # Skip hidden files
-        
-        full_path = os.path.join(path, item)
-        if os.path.isdir(full_path):
-            folders.append(item)
-        elif item.lower().endswith(('.mzml', '.xml')):
-            files.append(item)
-            
-    return {
-        "current_path": path,
-        "parent_path": os.path.dirname(path),
-        "folders": folders,
-        "files": files
-    }
 
 @app.post("/get-tic")
 def get_tic(filepath: str = Body(..., embed=True)):
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
 
-    try:
-        exp = load_ms_data(filepath)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    rts = []
-    ints = []
+    indices = file_indices.get(filepath)
+    if not indices:
+        load_ms_data(filepath)
+        indices = file_indices.get(filepath)
     
-    # Get TIC
-    for spec in exp.getSpectra():
-        if spec.getMSLevel() == 1:
-            rts.append(spec.getRT())
-            mzs, intensities = spec.get_peaks()
-            ints.append(float(np.sum(intensities)))
-    
-    # Safe limit for high resolution
-    if len(rts) > 100000:
-        step = len(rts) // 100000
-        rts = rts[::step]
-        ints = ints[::step]
-            
-    return {"rts": rts, "ints": ints}
+    return {
+        "rts": indices["tic_rts"].tolist(),
+        "ints": indices["tic_ints"].tolist()
+    }
 
 @app.post("/extract-chromatogram")
 def extract_chromatogram(
@@ -166,18 +121,15 @@ def extract_chromatogram(
     rts = []
     ints = []
     
+    # Optimized loop: mzML indexing is slow, but we can't avoid loading peaks.
+    # However, we only process MS1.
     for spec in exp.getSpectra():
         if spec.getMSLevel() == 1:
-            rts.append(spec.getRT())
+            rts.append(float(spec.getRT()))
             mzs, intensities = spec.get_peaks()
+            # Vectorized sum within range
             mask = (mzs >= min_mz) & (mzs <= max_mz)
             ints.append(float(np.sum(intensities[mask])))
-    
-    # Safe limit to prevent browser crash, but high enough for full resolution
-    if len(rts) > 100000:
-        step = len(rts) // 100000
-        rts = rts[::step]
-        ints = ints[::step]
             
     return {"rts": rts, "ints": ints}
 
@@ -330,7 +282,6 @@ def get_scan_list(filepath: str = Body(..., embed=True)):
 
     indices = file_indices.get(filepath)
     if not indices:
-        # Fallback to loading it
         load_ms_data(filepath)
         indices = file_indices.get(filepath)
         

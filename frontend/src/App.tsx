@@ -4,12 +4,6 @@ import Split from 'react-split'; // Split panes
 import './App.css'; 
 
 // Define types for API responses
-interface BrowseResponse {
-  current_path: string;
-  parent_path: string;
-  folders: string[];
-  files: string[];
-}
 interface ChromatogramResponse { rts: number[]; ints: number[]; }
 interface SpectrumResponse { mzs: number[]; ints: number[]; rt: number; has_ms2?: number[]; }
 interface MS2Response { mzs: number[]; ints: number[]; rt: number; precursor_mz: number; }
@@ -26,9 +20,6 @@ const BACKEND_URL = import.meta.env.MODE === 'production' ? '' : 'http://localho
 function App() {
   // --- STATE ---
   // Browser
-  const [currentPath, setCurrentPath] = useState<string>('');
-  const [folders, setFolders] = useState<string[]>([]);
-  const [files, setFiles] = useState<string[]>([]);
   const [manualPath, setManualPath] = useState<string>('');
   
   // Selection & Input
@@ -45,7 +36,7 @@ function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [plotRevision, setPlotRevision] = useState<number>(0); 
-  const [sidebarVisible, setSidebarVisible] = useState<boolean>(true);
+  const [sidebarVisible] = useState<boolean>(true);
   const [scanList, setScanList] = useState<Scan[]>([]);
   const [currentScanIdx, setCurrentScanIdx] = useState<number>(-1);
   const [chromXRange, setChromXRange] = useState<[number, number] | null>(null);
@@ -55,9 +46,13 @@ function App() {
   const [ms2Data, setMs2Data] = useState<MS2Response | null>(null);
   const [ms2XRange, setMs2XRange] = useState<[number, number] | null>(null);
   const [ms2Loading, setMs2Loading] = useState<boolean>(false);
+  const [showHelp, setShowHelp] = useState<boolean>(false);
 
   // --- EFFECTS ---
-  useEffect(() => { fetchDirectory(''); }, []);
+  // Initial demo load removed to favor user upload
+  useEffect(() => { 
+    // fetchDirectory(''); // Not needed anymore
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -121,35 +116,39 @@ function App() {
   };
 
   // --- ACTIONS ---
-  const fetchDirectory = async (path: string) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    // Clear old data immediately to show loading state is fresh
+    setSelectedFile('');
+    setTicData(null); setChromData(null); setSpectrumData(null);
+    setScanList([]); setCurrentScanIdx(-1);
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
     setLoading(true); setError(null);
     try {
-      const url = `${BACKEND_URL}/browse-files${path ? `?path=${encodeURIComponent(path)}` : ''}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Failed to load directory.');
-      const data: BrowseResponse = await response.json();
-      setCurrentPath(data.current_path); setFolders(data.folders); setFiles(data.files);
-    } catch (err: any) { setError(err.message); } finally { setLoading(false); }
-  };
-
-  const traverseUp = () => {
-    if (!currentPath) return;
-    const parent = currentPath.split(/[/\\]/).slice(0, -1).join('/');
-    fetchDirectory(parent || '/'); 
-  };
-
-  const handleFolderClick = (folderName: string) => {
-    const newPath = currentPath === '/' ? `/${folderName}` : `${currentPath}/${folderName}`;
-    fetchDirectory(newPath);
-  };
-
-  const handleFileSelect = (fileName: string) => {
-    const fullPath = currentPath === '/' ? `/${fileName}` : `${currentPath}/${fileName}`;
-    setSelectedFile(fullPath);
-    setChromData(null); setSpectrumData(null);
-    setScanList([]); setCurrentScanIdx(-1);
-    fetchTic(fullPath);
-    fetchScanList(fullPath);
+        const response = await fetch(`${BACKEND_URL}/upload`, {
+            method: 'POST',
+            body: formData
+        });
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.detail || 'Upload failed.');
+        }
+        const data = await response.json();
+        
+        setSelectedFile(data.filepath);
+        // Sequential fetch to ensure stability
+        await fetchTic(data.filepath);
+        await fetchScanList(data.filepath);
+    } catch (err: any) { 
+        setError(`Upload Error: ${err.message}`); 
+    } finally { 
+        setLoading(false); 
+    }
   };
 
   const loadDemoData = async () => {
@@ -166,34 +165,13 @@ function App() {
     } catch (err: any) { setError(err.message); } finally { setLoading(false); }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    setLoading(true); setError(null);
-    try {
-        const response = await fetch(`${BACKEND_URL}/upload`, {
-            method: 'POST',
-            body: formData
-        });
-        if (!response.ok) throw new Error('Upload failed. The file might be too large for the server.');
-        const data = await response.json();
-        
-        setSelectedFile(data.filepath);
-        setTicData(null); setChromData(null); setSpectrumData(null);
-        setScanList([]); setCurrentScanIdx(-1);
-        fetchTic(data.filepath);
-        fetchScanList(data.filepath);
-    } catch (err: any) { setError(err.message); } 
-    finally { setLoading(false); }
-  };
-
   const handleManualPathSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (manualPath) fetchDirectory(manualPath);
+    if (manualPath) {
+        setSelectedFile(manualPath);
+        fetchTic(manualPath);
+        fetchScanList(manualPath);
+    }
   };
 
   const fetchScanList = async (filepath: string) => {
@@ -412,52 +390,67 @@ function App() {
 
   return (
     <div className="container">
-      <header style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-        <button onClick={() => setSidebarVisible(!sidebarVisible)} style={{ padding: '4px 8px', fontSize: '0.8rem' }}>
-            {sidebarVisible ? 'Hide Sidebar' : 'Show Sidebar'}
+      <header style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '10px 20px', backgroundColor: '#181818', borderBottom: '1px solid #333', boxShadow: '0 2px 10px rgba(0,0,0,0.5)' }}>
+        <h1 style={{ margin: 0, fontSize: '1.4rem', color: '#ffc107', letterSpacing: '1px' }}>TOMETABOLOME</h1>
+        
+        <div style={{ display: 'flex', gap: '15px', marginLeft: '20px' }}>
+            <label className="action-btn" style={{ backgroundColor: '#28a745', cursor: 'pointer', padding: '8px 16px', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                📂 Open Local File 
+                <input type="file" accept=".mzML,.xml" style={{ display: 'none' }} onChange={handleFileUpload} />
+            </label>
+            
+            <button className="action-btn" onClick={loadDemoData} style={{ backgroundColor: '#444', padding: '8px 16px', borderRadius: '4px' }}>
+                🧪 Load Demo
+            </button>
+        </div>
+
+        <button 
+            className="action-btn" 
+            onClick={() => setShowHelp(true)} 
+            style={{ backgroundColor: '#007bff', marginLeft: 'auto', padding: '8px 16px', borderRadius: '4px' }}
+        >
+            ❓ Help & Controls
         </button>
-        <h1>Tometabolome</h1>
       </header>
       
       <div className="main-layout" style={{ display: 'flex', flexDirection: 'row', flex: 1, overflow: 'hidden' }}>
         {sidebarVisible && (
-            <div className="sidebar" style={{ width: '250px', flexShrink: 0 }}>
-                <div className="browser-header" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <h3 style={{ margin: 0 }}>File Browser</h3>
-                        <div style={{ display: 'flex', gap: '5px' }}>
-                            <label className="action-btn" style={{ backgroundColor: '#007bff', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem' }}>
-                                📤 Upload 
-                                <input type="file" accept=".mzML,.xml" style={{ display: 'none' }} onChange={handleFileUpload} />
-                            </label>
-                            <button onClick={traverseUp} disabled={!currentPath || currentPath === '/'} style={{ padding: '2px 8px' }}>⬆️ Up</button>
-                        </div>
+            <div className="sidebar" style={{ width: '300px', flexShrink: 0, borderRight: '1px solid #333' }}>
+                <div style={{ padding: '10px', borderBottom: '1px solid #333' }}>
+                    <h3 style={{ margin: '0 0 10px 0', fontSize: '1rem' }}>Feature Table (Scans)</h3>
+                    <div style={{ fontSize: '0.8rem', color: '#888' }}>
+                        {scanList.length} scans found in file.
                     </div>
+                </div>
+                
+                {/* Manual path entry reserved for advanced local use */}
+                <div style={{ padding: '10px', backgroundColor: '#222', borderBottom: '1px solid #333' }}>
                     <form onSubmit={handleManualPathSubmit} style={{ display: 'flex', gap: '5px' }}>
                         <input 
                             type="text" 
-                            placeholder="Enter path (e.g. /Users/name/Desktop)" 
+                            placeholder="Direct path (advanced)..." 
                             value={manualPath}
                             onChange={(e) => setManualPath(e.target.value)}
-                            style={{ flex: 1, fontSize: '0.75rem', padding: '4px' }}
+                            style={{ flex: 1, fontSize: '0.7rem', padding: '4px' }}
                         />
-                        <button type="submit" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>Go</button>
+                        <button type="submit" style={{ padding: '4px 8px', fontSize: '0.7rem' }}>Go</button>
                     </form>
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#888', marginBottom: '10px', wordBreak: 'break-all' }}>Current: {currentPath}</div>
-                <div className="file-list">
-                    {folders.map(f => (
-                        <div key={f} className="file-item folder" onClick={() => handleFolderClick(f)}>
-                            📁 {f}
-                        </div>
-                    ))}
-                    {files.map(f => (
+
+                <div className="file-list" style={{ flex: 1, overflowY: 'auto' }}>
+                    {/* Scan list is rendered here instead of file browser */}
+                    {scanList.map((scan, idx) => (
                         <div 
-                            key={f} 
-                            className={`file-item file ${selectedFile.endsWith(f) ? 'active' : ''}`}
-                            onClick={() => handleFileSelect(f)}
+                            key={idx}
+                            id={`scan-row-${idx}`}
+                            className={`file-item file ${currentScanIdx === idx ? 'active' : ''}`}
+                            onClick={() => updateSpectrumByIndex(idx)}
+                            style={{ fontSize: '0.8rem', padding: '8px' }}
                         >
-                            📄 {f}
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>RT: {(scan.rt / 60.0).toFixed(2)}m</span>
+                                <span style={{ color: '#888' }}>m/z {scan.base_peak_mz.toFixed(2)}</span>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -791,6 +784,41 @@ function App() {
             </Split>
         </div>
       </div>
+      {showHelp && (
+          <div 
+              style={{ 
+                  position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+                  backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000, 
+                  display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' 
+              }}
+              onClick={() => setShowHelp(false)}
+          >
+              <div 
+                  style={{ 
+                      backgroundColor: '#222', padding: '30px', borderRadius: '12px', 
+                      maxWidth: '600px', border: '1px solid #444', boxShadow: '0 0 30px rgba(0,0,0,0.5)' 
+                  }}
+                  onClick={e => e.stopPropagation()}
+              >
+                  <h2 style={{ color: '#ffc107', marginTop: 0 }}>App Controls & Instructions</h2>
+                  <ul style={{ lineHeight: '1.8', color: '#eee' }}>
+                      <li><strong>Mouse Click:</strong> Click on Chromatogram (top-left) to view the MS1 spectrum at that time.</li>
+                      <li><strong>Mouse Drag:</strong> Zoom into a region of any plot.</li>
+                      <li><strong>Double Click:</strong> Reset zoom to show all data.</li>
+                      <li><strong>Scroll Wheel:</strong> Zoom in/out at the mouse position.</li>
+                      <li><strong>Arrow Left/Right:</strong> Navigate between scans (previous/next).</li>
+                      <li><strong>Peak Integration:</strong> Click 'Start Mode', then drag over a peak in Chromatogram to calculate area.</li>
+                      <li><strong>MS2 Viewing:</strong> Click on orange-highlighted peaks in MS1 (bottom-left) to see fragments.</li>
+                  </ul>
+                  <button 
+                      onClick={() => setShowHelp(false)}
+                      style={{ width: '100%', marginTop: '20px', padding: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                      Got it!
+                  </button>
+              </div>
+          </div>
+      )}
     </div>
   );
 }
