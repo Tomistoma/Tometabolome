@@ -4,3 +4,4 @@ pyopenms
 numpy
 pandas
 plotly
+python-multipart
